@@ -1,0 +1,4 @@
+LIBRARY DSOUND
+
+EXPORTS
+    DirectSoundEnumerateA @2

@@ -1,77 +1,171 @@
 use std::error::Error;
-use std::ffi::{OsStr, CStr, c_void};
+use std::ffi::{OsStr, CStr, CString, c_void};
 use std::mem;
+use std::path::PathBuf;
+use std::str::FromStr;
 
 use libc::strcat;
-use winapi::shared::ntdef::HRESULT;
+use winapi::shared::ntdef::{HRESULT };
+use windows::Win32::System::Console::AllocConsole;
 use windows::Win32::System::LibraryLoader::{GetModuleHandleA, LoadLibraryA, GetProcAddress};
 use windows::Win32::System::SystemInformation::GetSystemDirectoryA;
 use windows::core::{PCSTR};
 use windows::Win32::System::Diagnostics::Debug::{ImageNtHeader, IMAGE_DIRECTORY_ENTRY_IMPORT};
-use winapi::shared::minwindef::{HINSTANCE, DWORD, LPVOID, BOOL, TRUE, MAX_PATH, FARPROC};
+use windows::Win32::Foundation::HINSTANCE;
+use winapi::shared::minwindef::{DWORD, LPVOID, BOOL, TRUE, FALSE, MAX_PATH, FARPROC};
 use winapi::um::winnt::{DLL_PROCESS_ATTACH};
 
-type DirectSoundCreateType = unsafe extern "system" fn(_: *const c_void, _: *mut c_void, _: *const c_void) -> HRESULT;
+type DirectSoundCreateType = unsafe extern "system" fn(_: *const c_void, _: *mut LPVOID, _: *const c_void) -> HRESULT;
 
-static mut oDirectSoundCreate: Option<DirectSoundCreateType> = None;
+// static mut direct_sound_capture_create: Option<DirectSoundCreateType> = None;
+// #[no_mangle]
+// pub unsafe extern "system" fn DirectSoundCaptureCreate(a: *const c_void, b: *mut LPVOID, c: *const c_void) -> HRESULT {
+//     direct_sound_capture_create.as_ref().unwrap()(a, b, c)
+// }
 
+// static mut direct_sound_capture_create8: Option<DirectSoundCreateType> = None;
+// #[no_mangle]
+// pub unsafe extern "system" fn DirectSoundCaptureCreate8(a: *const c_void, b: *mut LPVOID, c: *const c_void) -> HRESULT {
+//     direct_sound_capture_create8.as_ref().unwrap()(a, b, c)
+// }
+
+// static mut direct_sound_create: Option<DirectSoundCreateType> = None;
+// #[no_mangle]
+// pub unsafe extern "system" fn DirectSoundCreate(a: *const c_void, b: *mut LPVOID, c: *const c_void) -> HRESULT { 
+//     direct_sound_create.as_ref().unwrap()(a, b, c)
+// }
+
+// static mut direct_sound_create8: Option<DirectSoundCreateType> = None;
+// #[no_mangle]
+// pub unsafe extern "system" fn DirectSoundCreate8(a: *const c_void, b: *mut LPVOID, c: *const c_void) -> HRESULT { 
+//     direct_sound_create8.as_ref().unwrap()(a, b, c)
+// }
+
+type DirectSoundEnumerate = unsafe extern "system" fn(_: *mut c_void, _: LPVOID) -> HRESULT;
+
+// static mut direct_sound_capture_enumerate_a: Option<DirectSoundEnumerate> = None;
+// #[no_mangle]
+// pub unsafe extern "system" fn DirectSoundCaptureEnumerateA(a: *mut c_void, b: LPVOID) -> HRESULT {
+//     direct_sound_capture_enumerate_a.as_ref().unwrap()(a, b)
+// }
+
+// static mut direct_sound_capture_enumerate_w: Option<DirectSoundEnumerate> = None;
+// #[no_mangle]
+// pub unsafe extern "system" fn DirectSoundCaptureEnumerateW(a: *mut c_void, b: LPVOID) -> HRESULT {
+//     direct_sound_capture_enumerate_w.as_ref().unwrap()(a, b)
+// }
+
+static mut direct_sound_enumerate_a: Option<DirectSoundEnumerate> = None;
 #[no_mangle]
-pub unsafe extern "C" fn DirectSoundCaptureCreate(_: *const c_void, _: *mut c_void, _: *const c_void) -> HRESULT { -1 }
-#[no_mangle]
-pub unsafe extern "C" fn DirectSoundCaptureCreate8(_: *const c_void, _: *mut c_void, _: *const c_void) -> HRESULT { -1 }
-#[no_mangle]
-pub unsafe extern "C" fn DirectSoundCaptureEnumerateA(_: *const c_void, _: LPVOID) -> HRESULT { -1 }
-#[no_mangle]
-pub unsafe extern "C" fn DirectSoundCaptureEnumerateW(_: *const c_void, _: LPVOID) -> HRESULT { -1 }
-#[no_mangle]
-pub unsafe extern "C" fn DirectSoundCreate(a: *const c_void, b: *mut c_void, c: *const c_void) -> HRESULT { 
-    oDirectSoundCreate.as_ref().unwrap()(a, b, c)
+pub unsafe extern "system" fn DirectSoundEnumerateA(a: *mut c_void, b: LPVOID) -> HRESULT {
+    let gg = direct_sound_enumerate_a.as_ref();
+    match gg {
+        Some(k) => k(a, b),
+        None => { println!("empty ptr"); -1 }
+    }
 }
-#[no_mangle]
-pub unsafe extern "C" fn DirectSoundCreate8(a: *const c_void, b: *mut c_void, c: *const c_void) -> HRESULT { 
-    oDirectSoundCreate.as_ref().unwrap()(a, b, c)
-}
-#[no_mangle]
-pub unsafe extern "C" fn DirectSoundEnumerateA(_: *const c_void, _: LPVOID) -> HRESULT { -1 }
-#[no_mangle]
-pub unsafe extern "C" fn DirectSoundEnumerateW(_: *const c_void, _: LPVOID) -> HRESULT { -1 }
-#[no_mangle]
-pub unsafe extern "C" fn DirectSoundFullDuplexCreate(
-    _: *const c_void,
-    _: *const c_void,
-    _: *const c_void,
-    _: *const c_void,
-    _: *const c_void,
-    _: *const c_void,
-    _: *const c_void,
-    _: *const c_void,
-    _: *const c_void,
-    _: *const c_void,
-) -> HRESULT { -1 }
-#[no_mangle]
-pub unsafe extern "C" fn DllCanUnloadNow() {}
-#[no_mangle]
-pub unsafe extern "C" fn DllGetClassObject() {}
-#[no_mangle]
-pub unsafe extern "C" fn GetDeviceID(
-    _: *const c_void,
-    _: *const c_void,
-) -> HRESULT { -1 }
 
+// static mut direct_sound_enumerate_w: Option<DirectSoundEnumerate> = None;
+// #[no_mangle]
+// pub unsafe extern "system" fn DirectSoundEnumerateW(a: *mut c_void, b: LPVOID) -> HRESULT {
+//     direct_sound_enumerate_w.as_ref().unwrap()(a, b)
+// }
+
+type DirectSoundFullDuplexCreateType = unsafe extern "system" fn(
+    _: *const c_void,
+    _: *const c_void,
+    _: *const c_void,
+    _: *const c_void,
+    _: *const c_void,
+    _: *const c_void,
+    _: *const c_void,
+    _: *const c_void,
+    _: *const c_void,
+    _: *const c_void,
+) -> HRESULT;
+
+// static mut direct_sound_full_duplex_create: Option<DirectSoundFullDuplexCreateType> = None;
+// #[no_mangle]
+// pub unsafe extern "system" fn DirectSoundFullDuplexCreate(
+//     a: *const c_void,
+//     b: *const c_void,
+//     c: *const c_void,
+//     d: *const c_void,
+//     e: *const c_void,
+//     f: *const c_void,
+//     g: *const c_void,
+//     h: *const c_void,
+//     i: *const c_void,
+//     j: *const c_void,
+// ) -> HRESULT {
+//     direct_sound_full_duplex_create.as_ref().unwrap()(a, b, c, d, e, f, g, h, i, j)
+// }
+
+// #[no_mangle]
+// pub unsafe extern "C" fn DllCanUnloadNow() {}
+// #[no_mangle]
+// pub unsafe extern "C" fn DllGetClassObject() {}
+
+type GetDeviceIDType = unsafe extern "system" fn(_: *const c_void, _: *const c_void) -> HRESULT;
+
+// static mut get_device_id: Option<GetDeviceIDType> = None;
+// #[no_mangle]
+// pub unsafe extern "system" fn GetDeviceID(
+//     a: *const c_void,
+//     b: *const c_void,
+// ) -> HRESULT { get_device_id.as_ref().unwrap()(a, b) }
+
+unsafe fn init_func1(lib: HINSTANCE, method_name: &str, store: &mut Option<DirectSoundCreateType>) {
+    let func = GetProcAddress(lib, PCSTR::from_raw(method_name.as_ptr())).unwrap();
+    let hndl = mem::transmute::<unsafe extern "system" fn() -> isize, DirectSoundCreateType>(func);
+    store.replace(hndl);
+}
+
+unsafe fn init_func2(lib: HINSTANCE, method_name: &str, store: &mut Option<DirectSoundEnumerate>) {
+    let m = CString::new(method_name).expect("cstring1");
+    let func = GetProcAddress(lib, PCSTR::from_raw(m.as_ptr() as *const u8)).unwrap();
+    let hndl = mem::transmute::<unsafe extern "system" fn() -> isize, DirectSoundEnumerate>(func);
+    store.replace(hndl);
+}
+
+unsafe fn init_func3(lib: HINSTANCE, method_name: &str, store: &mut Option<DirectSoundFullDuplexCreateType>) {
+    let func = GetProcAddress(lib, PCSTR::from_raw(method_name.as_ptr())).unwrap();
+    let hndl = mem::transmute::<unsafe extern "system" fn() -> isize, DirectSoundFullDuplexCreateType>(func);
+    store.replace(hndl);
+}
+
+unsafe fn init_func4(lib: HINSTANCE, method_name: &str, store: &mut Option<GetDeviceIDType>) {
+    let func = GetProcAddress(lib, PCSTR::from_raw(method_name.as_ptr())).unwrap();
+    let hndl = mem::transmute::<unsafe extern "system" fn() -> isize, GetDeviceIDType>(func);
+    store.replace(hndl);
+}
 
 unsafe fn main() -> Result<(), Box<dyn Error>> {
     let mut path = vec![];
     path.resize(MAX_PATH, 0);
     let _ = GetSystemDirectoryA(&mut path[..]);
-    let s = String::from_utf8(path)?;
-    let s = s + "\\dsound.dll";
-    let ss = PCSTR::from_raw(s.as_ptr());
-    let lib = LoadLibraryA(ss)?;
-    let name = "DirectSoundCreate";
-    let hndl = mem::transmute::<unsafe extern "system" fn() -> isize, DirectSoundCreateType>(GetProcAddress(lib, PCSTR::from_raw(name.as_ptr())).unwrap());
-    oDirectSoundCreate = Some(hndl);
-    
-    // rewrite_iat()
+    let s = String::from_utf8(path.into_iter().filter(|c| *c != 0).collect())?;
+    let p = PathBuf::from_str(&s)?;
+    let kk = p.join("dsound.dll");
+    let vv = "C:\\WINDOWS\\system32\\dsound.dll".to_string();
+    let ss = PCSTR::from_raw(kk.as_os_str().to_str().expect("cant get str").as_ptr());
+    let ss2 = PCSTR::from_raw(vv.as_ptr());
+    let vv2 = CString::new("C:\\WINDOWS\\system32\\dsound.dll")?;
+    let ss3 = PCSTR::from_raw(vv2.as_ptr() as *const u8);
+    // println!("trying to find dll: {}", ss2.as_os_str().to_str().unwrap());
+    println!("ss2: {}\nbytes: {}", ss3.display(), ss3.as_bytes().len());
+    let lib = LoadLibraryA(ss3)?;
+    // init_func1(lib, "DirectSoundCreate", &mut direct_sound_create);
+    // init_func1(lib, "DirectSoundCreate8", &mut direct_sound_create8);
+    // init_func1(lib, "DirectSoundCaptureCreate", &mut direct_sound_capture_create);
+    // init_func1(lib, "DirectSoundCaptureCreate8", &mut direct_sound_capture_create8);
+    init_func2(lib, "DirectSoundEnumerateA", &mut direct_sound_enumerate_a);
+    // init_func2(lib, "DirectSoundEnumerateW", &mut direct_sound_enumerate_w);
+    // init_func2(lib, "DirectSoundCaptureEnumerateA", &mut direct_sound_capture_enumerate_a);
+    // init_func2(lib, "DirectSoundCaptureEnumerateW", &mut direct_sound_capture_enumerate_w);
+    // init_func3(lib, "DirectSoundFullDuplexCreate", &mut direct_sound_full_duplex_create);
+    // init_func4(lib, "GetDeviceID", &mut get_device_id);
+
     Ok(())
 }
 
@@ -127,7 +221,14 @@ pub unsafe extern "system" fn DllMain(
     _reserved: LPVOID,
 ) -> BOOL {
     if call_reason == DLL_PROCESS_ATTACH {
-        main().is_ok() as BOOL
+        AllocConsole();
+        let r = main();
+        if let Err(v) = r {
+            println!("error: {}", v);
+            FALSE
+        } else {
+            TRUE
+        }
     } else {
         TRUE
     }
