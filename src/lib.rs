@@ -4,13 +4,15 @@ use sigscan::*;
 use std::error::Error;
 use std::ffi::{CString, c_void};
 use std::mem;
+use std::arch::asm;
 
-use detour::RawDetour;
+use detour::{RawDetour};
 use windows::Win32::System::Console::AllocConsole;
-use windows::Win32::System::LibraryLoader::{LoadLibraryA, GetProcAddress};
+use windows::Win32::System::LibraryLoader::{LoadLibraryA, GetProcAddress, DisableThreadLibraryCalls};
 use windows::Win32::System::{SystemInformation::GetSystemDirectoryA, SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH}};
 use windows::core::{PCSTR, HRESULT};
 use windows::Win32::Foundation::{HINSTANCE, MAX_PATH, BOOL};
+use widestring::{U16CStr};
 
 type LPVOID = *const c_void;
 type DWORD = u32;
@@ -122,14 +124,42 @@ const SAVE_PLAYER_SIGNATURE: Signature = Signature{
     ret: 0,
 };
 
+#[repr(C)]
+struct PlayerInfo {
+    unk_ptr: u32,
+    unk_type: u32,
+    player_name_ptr: *const u16,
+}
+
 static mut SAVE_PLAYER_HOOK: Option<RawDetour> = None;
 
-unsafe fn save_player(a: *const c_void, b: *const c_void) {
-    println!("a ptr: {}", a as u64);
-    println!("b ptr: {}", b as u64);
+
+unsafe fn save_player() {
+    let a: u32;
+    let b: u32;
+
+    asm!(
+        "", 
+        out("eax") a,
+        out("edx") b,
+    );
+
     let href = SAVE_PLAYER_HOOK.as_ref().expect("empty player hook");
-    let orig: fn(*const c_void, *const c_void) = mem::transmute(href.trampoline());
-    orig(a, b);
+    let orig: fn() = mem::transmute(href.trampoline());
+    println!("a is {}\nb is {}", a, b);
+
+    let player_info = a as *const PlayerInfo;
+
+    let s = U16CStr::from_ptr_str((*player_info).player_name_ptr);
+    println!("player name: {}", s.display());
+
+    asm!(
+        "",
+        in("eax") a,
+        in("edx") b,
+    );
+
+    orig();
 }
 
 unsafe fn hook_save_player(addr: u32) {
@@ -160,6 +190,7 @@ unsafe fn main() -> Result<(), Box<dyn Error>> {
     );
     let ss = PCSTR::from_raw(s.as_ptr());
     let lib = LoadLibraryA(ss)?;
+
     init_func2(lib, "DirectSoundEnumerateA", &mut DIRECT_SOUND_ENUMERATE_A);
     init_func2(lib, "DirectSoundEnumerateW", &mut DIRECT_SOUND_ENUMERATE_W);
     init_func2(lib, "DirectSoundCaptureEnumerateA", &mut DIRECT_SOUND_CAPTURE_ENUMERATE_A);
@@ -177,11 +208,12 @@ unsafe fn main() -> Result<(), Box<dyn Error>> {
 
 #[no_mangle]
 pub unsafe extern "system" fn DllMain(
-    _module: HINSTANCE,
+    module: HINSTANCE,
     call_reason: DWORD,
     _reserved: LPVOID,
 ) -> BOOL {
     if call_reason == DLL_PROCESS_ATTACH {
+        DisableThreadLibraryCalls(module);
         AllocConsole();
         let r = main();
         if let Err(v) = r {
@@ -190,8 +222,10 @@ pub unsafe extern "system" fn DllMain(
         } else {
             true.into()
         }
-    } else {
+    } else if call_reason == DLL_PROCESS_DETACH {
         remove_hook();
+        true.into()
+    } else {
         true.into()
     }
 }
