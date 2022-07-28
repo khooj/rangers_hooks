@@ -1,46 +1,44 @@
 use std::error::Error;
-use std::ffi::{OsStr, CStr, CString, c_void};
+use std::ffi::{CString, c_void};
 use std::mem;
 
-use libc::strcat;
-use winapi::shared::ntdef::{HRESULT };
 use windows::Win32::System::Console::AllocConsole;
-use windows::Win32::System::LibraryLoader::{GetModuleHandleA, LoadLibraryA, GetProcAddress};
-use windows::Win32::System::SystemInformation::GetSystemDirectoryA;
-use windows::core::{PCSTR};
-use windows::Win32::System::Diagnostics::Debug::{ImageNtHeader, IMAGE_DIRECTORY_ENTRY_IMPORT};
-use windows::Win32::Foundation::HINSTANCE;
-use winapi::shared::minwindef::{DWORD, LPVOID, BOOL, TRUE, FALSE, MAX_PATH, FARPROC};
-use winapi::um::winnt::{DLL_PROCESS_ATTACH};
+use windows::Win32::System::LibraryLoader::{LoadLibraryA, GetProcAddress};
+use windows::Win32::System::{SystemInformation::GetSystemDirectoryA, SystemServices::DLL_PROCESS_ATTACH};
+use windows::core::{PCSTR, HRESULT};
+use windows::Win32::Foundation::{HINSTANCE, MAX_PATH, BOOL};
+
+type LPVOID = *const c_void;
+type DWORD = u32;
 
 type DirectSoundEnumerate = unsafe extern "system" fn(_: *mut c_void, _: LPVOID) -> HRESULT;
 
-static mut direct_sound_capture_enumerate_a: Option<DirectSoundEnumerate> = None;
+static mut DIRECT_SOUND_CAPTURE_ENUMERATE_A: Option<DirectSoundEnumerate> = None;
 #[no_mangle]
 pub unsafe extern "system" fn DirectSoundCaptureEnumerateA(a: *mut c_void, b: LPVOID) -> HRESULT {
-    direct_sound_capture_enumerate_a.as_ref().unwrap()(a, b)
+    DIRECT_SOUND_CAPTURE_ENUMERATE_A.as_ref().unwrap()(a, b)
 }
 
-static mut direct_sound_capture_enumerate_w: Option<DirectSoundEnumerate> = None;
+static mut DIRECT_SOUND_CAPTURE_ENUMERATE_W: Option<DirectSoundEnumerate> = None;
 #[no_mangle]
 pub unsafe extern "system" fn DirectSoundCaptureEnumerateW(a: *mut c_void, b: LPVOID) -> HRESULT {
-    direct_sound_capture_enumerate_w.as_ref().unwrap()(a, b)
+    DIRECT_SOUND_CAPTURE_ENUMERATE_W.as_ref().unwrap()(a, b)
 }
 
-static mut direct_sound_enumerate_a: Option<DirectSoundEnumerate> = None;
+static mut DIRECT_SOUND_ENUMERATE_A: Option<DirectSoundEnumerate> = None;
 #[no_mangle]
 pub unsafe extern "system" fn DirectSoundEnumerateA(a: *mut c_void, b: LPVOID) -> HRESULT {
-    let gg = direct_sound_enumerate_a.as_ref();
+    let gg = DIRECT_SOUND_ENUMERATE_A.as_ref();
     match gg {
         Some(k) => k(a, b),
-        None => { println!("empty ptr"); -1 }
+        None => { println!("empty ptr"); HRESULT(-1) }
     }
 }
 
-static mut direct_sound_enumerate_w: Option<DirectSoundEnumerate> = None;
+static mut DIRECT_SOUND_ENUMERATE_W: Option<DirectSoundEnumerate> = None;
 #[no_mangle]
 pub unsafe extern "system" fn DirectSoundEnumerateW(a: *mut c_void, b: LPVOID) -> HRESULT {
-    direct_sound_enumerate_w.as_ref().unwrap()(a, b)
+    DIRECT_SOUND_ENUMERATE_W.as_ref().unwrap()(a, b)
 }
 
 unsafe fn init_func2(lib: HINSTANCE, method_name: &str, store: &mut Option<DirectSoundEnumerate>) {
@@ -52,7 +50,7 @@ unsafe fn init_func2(lib: HINSTANCE, method_name: &str, store: &mut Option<Direc
 
 unsafe fn main() -> Result<(), Box<dyn Error>> {
     let mut path = vec![];
-    path.resize(MAX_PATH, 0);
+    path.resize(MAX_PATH as usize, 0);
     let _ = GetSystemDirectoryA(&mut path[..]);
 
     let s = String::from_iter(
@@ -64,10 +62,10 @@ unsafe fn main() -> Result<(), Box<dyn Error>> {
     let ss = PCSTR::from_raw(s.as_ptr());
     println!("path: {}", ss.to_string().expect("to_string"));
     let lib = LoadLibraryA(ss)?;
-    init_func2(lib, "DirectSoundEnumerateA", &mut direct_sound_enumerate_a);
-    init_func2(lib, "DirectSoundEnumerateW", &mut direct_sound_enumerate_w);
-    init_func2(lib, "DirectSoundCaptureEnumerateA", &mut direct_sound_capture_enumerate_a);
-    init_func2(lib, "DirectSoundCaptureEnumerateW", &mut direct_sound_capture_enumerate_w);
+    init_func2(lib, "DirectSoundEnumerateA", &mut DIRECT_SOUND_ENUMERATE_A);
+    init_func2(lib, "DirectSoundEnumerateW", &mut DIRECT_SOUND_ENUMERATE_W);
+    init_func2(lib, "DirectSoundCaptureEnumerateA", &mut DIRECT_SOUND_CAPTURE_ENUMERATE_A);
+    init_func2(lib, "DirectSoundCaptureEnumerateW", &mut DIRECT_SOUND_CAPTURE_ENUMERATE_W);
 
     Ok(())
 }
@@ -83,11 +81,11 @@ pub unsafe extern "system" fn DllMain(
         let r = main();
         if let Err(v) = r {
             println!("error: {}", v);
-            FALSE
+            false.into()
         } else {
-            TRUE
+            true.into()
         }
     } else {
-        TRUE
+        true.into()
     }
 }
