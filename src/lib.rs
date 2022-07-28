@@ -1,10 +1,14 @@
+mod sigscan;
+use sigscan::*;
+
 use std::error::Error;
 use std::ffi::{CString, c_void};
 use std::mem;
 
+use detour::RawDetour;
 use windows::Win32::System::Console::AllocConsole;
 use windows::Win32::System::LibraryLoader::{LoadLibraryA, GetProcAddress};
-use windows::Win32::System::{SystemInformation::GetSystemDirectoryA, SystemServices::DLL_PROCESS_ATTACH};
+use windows::Win32::System::{SystemInformation::GetSystemDirectoryA, SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH}};
 use windows::core::{PCSTR, HRESULT};
 use windows::Win32::Foundation::{HINSTANCE, MAX_PATH, BOOL};
 
@@ -48,6 +52,101 @@ unsafe fn init_func2(lib: HINSTANCE, method_name: &str, store: &mut Option<Direc
     store.replace(hndl);
 }
 
+const SAVE_PLAYER_SIGNATURE: Signature = Signature{
+    signature: &[
+        0x55,
+        0x8B, 0xEC,
+        0x83, 0xC4, 0xF8,
+        0x89, 0x55, 0xF8,
+        0x89, 0x45, 0xFC,
+        0x83, 0x7D, 0xF8, 0x00,
+        0x74, 0x48,
+        0x8B, 0x45, 0xFC,
+        0x35, 0xD3, 0x15, 0xCD, 0xB1,
+        0xA3, 0x00, 0x00, 0x00, 0x00,
+        0x83, 0x7D, 0xFC, 0x00,
+        0x75, 0x0C,
+        0x8B, 0x45, 0xF8,
+        0xC7, 0x40, 0x28, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xEB, 0x29,
+        0x8B, 0x45, 0xF8,
+        0x83, 0x78, 0x3C, 0x00,
+        0x75, 0x0C,
+        0x8B, 0x45, 0xF8,
+        0xC7, 0x40, 0x28, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xEB, 0x14,
+        0x8B, 0x55, 0xFC,
+        0x8B, 0x45, 0xF8,
+        0x8B, 0x40, 0x3C,
+        0xE8, 0x40, 0xC1, 0xE9, 0xFF,
+        0x8B, 0x55, 0xF8,
+        0x89, 0x42, 0x28,
+        0x59,
+        0x59,
+        0x5D,
+        0xC3,
+    ],
+    mask: &[
+        b'x', 
+        b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', b'x', b'x', b'x', 
+        b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', b'x', b'x', b'x', b'x', 
+        b'x', b'?', b'?', b'?', b'?',
+        b'x', b'x', b'x', b'x', 
+        b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', b'x', b'x', b'x', b'x', b'x', b'x', 
+        b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', b'x', b'x', b'x', 
+        b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', b'x', b'x', b'x', b'x', b'x', b'x', 
+        b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', b'x', b'x', b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', b'x', b'x', 
+        b'x', 
+        b'x', 
+        b'x', 
+        b'x', 
+    ],
+    ret: 0,
+};
+
+static mut SAVE_PLAYER_HOOK: Option<RawDetour> = None;
+
+unsafe fn save_player(a: *const c_void, b: *const c_void) {
+    println!("a ptr: {}", a as u64);
+    println!("b ptr: {}", b as u64);
+    let href = SAVE_PLAYER_HOOK.as_ref().expect("empty player hook");
+    let orig: fn(*const c_void, *const c_void) = mem::transmute(href.trampoline());
+    orig(a, b);
+}
+
+unsafe fn hook_save_player(addr: u32) {
+    let hook = RawDetour::new(addr as *const (), save_player as *const ()).expect("cant get raw detour");
+    hook.enable().expect("can't enable hook");
+    SAVE_PLAYER_HOOK = Some(hook);
+}
+
+unsafe fn remove_hook() {
+    let hook = SAVE_PLAYER_HOOK.take();
+    let hook = match hook {
+        Some(k) => k,
+        None => return,
+    };
+    hook.disable().expect("cant disable hook");
+}
+
 unsafe fn main() -> Result<(), Box<dyn Error>> {
     let mut path = vec![];
     path.resize(MAX_PATH as usize, 0);
@@ -60,12 +159,18 @@ unsafe fn main() -> Result<(), Box<dyn Error>> {
         .chain("\\dsound.dll\0".chars())
     );
     let ss = PCSTR::from_raw(s.as_ptr());
-    println!("path: {}", ss.to_string().expect("to_string"));
     let lib = LoadLibraryA(ss)?;
     init_func2(lib, "DirectSoundEnumerateA", &mut DIRECT_SOUND_ENUMERATE_A);
     init_func2(lib, "DirectSoundEnumerateW", &mut DIRECT_SOUND_ENUMERATE_W);
     init_func2(lib, "DirectSoundCaptureEnumerateA", &mut DIRECT_SOUND_CAPTURE_ENUMERATE_A);
     init_func2(lib, "DirectSoundCaptureEnumerateW", &mut DIRECT_SOUND_CAPTURE_ENUMERATE_W);
+
+    let (base, image_len) = get_image_info().expect("cant get image info");
+    println!("base addr: {}, image_len: {}", base as u32, image_len);
+    let sig_start = find_signature(base, image_len, &SAVE_PLAYER_SIGNATURE).expect("can't get signature");
+    println!("found sig addr: {}", sig_start as u32);
+
+    hook_save_player(sig_start);
 
     Ok(())
 }
@@ -86,6 +191,7 @@ pub unsafe extern "system" fn DllMain(
             true.into()
         }
     } else {
+        remove_hook();
         true.into()
     }
 }
