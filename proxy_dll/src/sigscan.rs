@@ -16,6 +16,7 @@ pub enum SigscanError {
     VirtualQuery,
     FindBase,
     WinError(windows::core::Error),
+    MaskLen,
 }
 
 impl From<windows::core::Error> for SigscanError {
@@ -32,6 +33,7 @@ impl Display for SigscanError {
             Self::VirtualQuery => "cant call virtual query",
             Self::FindBase => "cant find base",
             Self::WinError(_) => "win call error",
+            Self::MaskLen => "one mask should be fully defined",
         };
         write!(f, "{}", reason)
     }
@@ -40,6 +42,7 @@ impl Display for SigscanError {
 pub struct Signature {
     pub signature: &'static [u8],
     pub mask: &'static [u8],
+    pub mask_str: &'static str,
     pub ret: u32,
 }
 
@@ -48,13 +51,19 @@ pub unsafe fn find_signature(base_addr: *const c_void, image_len: u32, sig: &Sig
     let mut scan = base_addr;
     let mut max_len = 0;
 
+    if sig.mask.len() != sig.signature.len() && sig.mask_str.len() != sig.signature.len() {
+        return Err(SigscanError::MaskLen);
+    }
+
     while scan < base_addr + image_len - sig.signature.len() as u32 {
         let mut sz_len = 0;
 
         for i in 0..sig.signature.len() {
             let is_sig_byte = *((scan+i as u32) as *const u8) == sig.signature[i];
-            let is_mask_byte = sig.mask[i] == b'?';
-            if !(is_sig_byte || is_mask_byte) {
+            let is_mask_byte = i < sig.mask.len() && sig.mask[i] == b'?';
+            let is_mask_str_byte = i < sig.mask_str.len() && sig.mask_str.chars().nth(i).unwrap() == '?';
+            let is_mask = is_mask_byte || is_mask_str_byte;
+            if !(is_sig_byte || is_mask) {
                 break;
             }
 
@@ -72,7 +81,7 @@ pub unsafe fn find_signature(base_addr: *const c_void, image_len: u32, sig: &Sig
         scan = scan + 1;
     }
 
-    println!("stopped at addr: {} with max_len: {}", scan, max_len);
+    println!("stopped at addr: {:#x} with max_len: {}", scan, max_len);
     return Err(SigscanError::CantFindSignature);
 }
 

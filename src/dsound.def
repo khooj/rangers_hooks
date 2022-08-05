@@ -1,7 +1,0 @@
-LIBRARY DSOUND
-
-EXPORTS
-    DirectSoundCaptureEnumerateA @7
-    DirectSoundCaptureEnumerateW @8
-    DirectSoundEnumerateA @2
-    DirectSoundEnumerateW @3
