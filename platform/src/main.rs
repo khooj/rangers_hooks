@@ -19,6 +19,7 @@ impl ws::Handler for Handler {
                     bincode::deserialize(&v[..]).expect("can't deserialize method");
                 match msg {
                     models::EncodedMessage::PlayerInfo(m) => println!("got player info: {:?}", m),
+                    _ => println!("unhandled msg"),
                 };
             }
             _ => {

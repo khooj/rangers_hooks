@@ -3,8 +3,9 @@ use crate::handler::{Handler, HANDLERS_COUNT};
 use super::player::*;
 use models::EncodedMessage;
 use std::{
-    thread::{self, JoinHandle},
-    time::Duration, sync::atomic::Ordering,
+    sync::atomic::Ordering,
+    thread::{self, sleep, JoinHandle},
+    time::Duration,
 };
 use thiserror::Error;
 use ws::{Builder, Settings};
@@ -16,6 +17,7 @@ pub struct MainThread {}
 
 static mut MAIN_THREAD: Option<JoinHandle<()>> = None;
 static mut DATA_THREAD: Option<JoinHandle<()>> = None;
+const DATA_THREAD_SLEEP: Duration = Duration::from_millis(100);
 
 impl MainThread {
     pub fn start() -> Result<(), MainThreadError> {
@@ -31,24 +33,41 @@ impl MainThread {
                 .expect("can't create ws");
             w.listen("127.0.0.1:3012").expect("can't start ws");
         }));
-        let hndl2 = Some(thread::spawn(move || loop {
-            let c = HANDLERS_COUNT.load(Ordering::SeqCst);
-            println!("h count: {}", c);
-            if c == 0 {
-                println!("no handler?");
-                std::thread::sleep(Duration::from_millis(250));
-                continue;
-            }
 
-            if let Some(p) = get_player_struct() {
-                let m = p.clone_as_model();
-                let m = EncodedMessage::PlayerInfo(m);
-                let m = bincode::serialize(&m).expect("can't serialize message");
-                // ignore SendError if no receivers exist, we are ok
-                let _ = tx.send(m);
-            }
+        let hndl2 = Some(thread::spawn(move || {
+            let mut player_info = None;
 
-            std::thread::sleep(Duration::from_millis(250));
+            loop {
+                if HANDLERS_COUNT.load(Ordering::SeqCst) == 0 {
+                    sleep(DATA_THREAD_SLEEP);
+                    continue;
+                }
+
+                let msg = {
+                    let new_player_info = get_player_struct();
+                    if new_player_info != player_info {
+                        player_info = new_player_info;
+                        let m = match &player_info {
+                            Some(e) => EncodedMessage::PlayerInfo(e.clone()),
+                            None => EncodedMessage::EmptyPlayerInfo,
+                        };
+                        m
+                    } else {
+                        EncodedMessage::NoMessage
+                    }
+                };
+
+                match msg {
+                    EncodedMessage::NoMessage => {}
+                    m => {
+                        let m = bincode::serialize(&m).expect("can't serialize message");
+                        // ignore SendError if no receivers exist, we are ok
+                        let _ = tx.send(m);
+                    }
+                };
+
+                sleep(DATA_THREAD_SLEEP);
+            }
         }));
         unsafe {
             MAIN_THREAD = hndl;
