@@ -1,2 +1,2 @@
 [workspace]
-members = ["injector", "proxy_dll", "platform"]
+members = ["injector", "proxy_dll", "platform", "models"]

@@ -1,6 +1,7 @@
 mod sigscan;
 mod player;
 mod main_thread;
+mod handler;
 
 use std::error::Error;
 use std::ffi::{CString, c_void};
