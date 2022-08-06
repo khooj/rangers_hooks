@@ -1,0 +1,26 @@
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+
+[tasks.build]
+command = "cargo"
+args = ["build", "--release"]
+
+[tasks.inject]
+command = "cargo"
+args = [
+    "run",
+    "--bin",
+    "injector",
+    "--release",
+    "--",
+    "--procname",
+    "Rangers.exe",
+    "--lib",
+    "target/release/proxy_dll.dll",
+]
+
+[tasks.flow]
+dependencies = [
+    "build",
+    "inject",
+]
