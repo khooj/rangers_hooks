@@ -1,4 +1,4 @@
-use spmc::Receiver;
+use spmc::{Receiver, TryRecvError};
 use std::{sync::{Arc, Mutex, atomic::{AtomicU8, Ordering}}};
 use ws::{util::Token, Message, Sender};
 
@@ -32,7 +32,9 @@ impl ws::Handler for Handler {
         if event == CHECK_EVENT {
             let msg = self.sub.try_recv();
             if msg.is_err() {
-                eprintln!("error getting message for send: {}", msg.err().unwrap());
+                if let Err(TryRecvError::Disconnected) = msg {
+                    eprintln!("error getting message for send: {}", msg.err().unwrap());
+                }
                 return self.sender.timeout(100, CHECK_EVENT);
             }
             let m = msg.unwrap();

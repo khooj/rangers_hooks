@@ -40,6 +40,7 @@ impl MainThread {
             loop {
                 if HANDLERS_COUNT.load(Ordering::SeqCst) == 0 {
                     sleep(DATA_THREAD_SLEEP);
+                    player_info = None;
                     continue;
                 }
 
