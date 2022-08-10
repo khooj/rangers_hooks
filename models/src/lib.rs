@@ -15,11 +15,14 @@ pub struct PlayerInfo {
     pub player_name: String,
     pub experience: u32,
     pub money: u32,
-    pub current_system: Option<PlanetSystem>,
+    pub current_system: PlanetSystem,
     // can be empty at game start
     pub previous_system: Option<PlanetSystem>,
     pub hull: Option<HullData>,
     pub current_system_planets: Vec<String>,
+    pub speed: u32,
+    pub x: f32,
+    pub y: f32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Derivative, Clone)]

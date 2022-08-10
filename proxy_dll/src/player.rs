@@ -9,7 +9,7 @@ pub fn get_player_struct() -> Option<models::PlayerInfo> {
         let p = PLAYER_INFO_PTR as *const u32;
         if *p != 0xb1cd15d3 {
             let a = (*p) ^ 0xb1cd15d3;
-            let a = &*(a as *const PlayerInfo);
+            let a = &*(a as *const SpaceshipInfo);
             // we still have some penalty for struct creation but for now its ok
             // println!("player info raw: {:?}", a);
             Some(a.clone_as_model())
@@ -21,17 +21,23 @@ pub fn get_player_struct() -> Option<models::PlayerInfo> {
 
 #[derive(Debug)]
 #[repr(C)]
-pub struct PlayerInfo {
+pub struct SpaceshipInfo {
     unk_ptr: u32, // 0
     unk_type: u32,
     player_name_ptr: *const u16,
-    empty_space0: [u32; 6],
+    empty_space0: [u32; 2],
+    x: f32,
+    y: f32,
+    unk4: [u32; 2],
     maybe_current_system_ptr: *const PlanetSystem,
     maybe_previous_system_ptr: *const PlanetSystem,
     maybe_some_ship_ptr: u32,
     empty_space2: [u32; 2],
     some_flag: u32, // 14 u32
-    empty_space4: [u32; 45],
+    // for 55
+    unk5: [u32; 34],
+    speed: u32,
+    empty_space4: [u32; 10],
     money: u32,
     unk1: u32,
     hull_ptr: *const Unk_HullData,
@@ -43,7 +49,7 @@ pub struct PlayerInfo {
     ship_type: *const u16,
 }
 
-impl PlayerInfo {
+impl SpaceshipInfo {
     fn name(&self) -> String {
         unsafe {
             let s = U16CStr::from_ptr_str(self.player_name_ptr);
@@ -54,10 +60,9 @@ impl PlayerInfo {
     fn planets(&self) -> Vec<String> {
         let mut names = vec![];
         unsafe {
-            let objects = &*(*self.maybe_current_system_ptr).maybe_planets;
-            println!("count: {}", objects.objects.count);
-            for i in objects.objects.iter() {
-                let s = U16CStr::from_ptr_str((*(*(*i).planet_ptr).planet_info).name);
+            let objects = &(*(*self.maybe_current_system_ptr).maybe_planets).objects;
+            for i in objects.iter() {
+                let s = U16CStr::from_ptr_str((*(*i).planet_ptr).name);
                 names.push(s.to_string_lossy());
             }
         }
@@ -71,11 +76,6 @@ impl PlayerInfo {
             } else {
                 Some((*self.maybe_previous_system_ptr).clone_as_model())
             };
-            let current_system = if (self.maybe_current_system_ptr as u32) == 0 {
-                None
-            } else {
-                Some((*self.maybe_current_system_ptr).clone_as_model())
-            };
             let hull = if (self.hull_ptr as u32) == 0 {
                 None
             } else {
@@ -84,11 +84,14 @@ impl PlayerInfo {
             models::PlayerInfo {
                 experience: self.experience,
                 player_name: self.name(),
-                current_system,
+                current_system: (*self.maybe_current_system_ptr).clone_as_model(),
                 previous_system,
                 hull,
                 money: self.money,
                 current_system_planets: self.planets(),
+                x: self.x,
+                y: self.y,
+                speed: self.speed,
             }
         }
     }
@@ -101,7 +104,7 @@ pub struct PlanetSystem {
     unk1: [u32; 4],
     maybe_planets: *const Unk_SystemObject,
     asteroids: *const Unk_SystemObject,
-    unk_objects1: u32,
+    spaceships: *const Unk_SystemObject,
     unk_objects2: u32,
     unk_objects3: u32,
     unk_objects4: u32,
@@ -149,13 +152,9 @@ impl Iterator for SystemObjectsRangeIter {
 
 #[repr(C)]
 pub union Unk_SystemObjectPtr {
-    planet_ptr: *const PlanetInfoPtr,
-    asteroid_ptr: *const AsteroidInfoPtr,
-}
-
-#[repr(C)]
-pub struct PlanetInfoPtr {
-    planet_info: *const PlanetInfo,
+    planet_ptr: *const PlanetInfo,
+    asteroid_ptr: *const AsteroidInfo,
+    spaceship_ptr: *const SpaceshipInfo,
 }
 
 #[repr(C)]
@@ -163,11 +162,6 @@ pub struct PlanetInfo {
     unk1: [u32; 5],
     name: *const u16,
     system_ptr: *const PlanetSystem,
-}
-
-#[repr(C)]
-pub struct AsteroidInfoPtr {
-    asteroid_ptr: *const AsteroidInfo,
 }
 
 #[repr(C)]
@@ -200,7 +194,7 @@ struct Unk_HullData {
     hull_hp: u32,
     maybe_unk_constant: u32,
     unk_ffff: u32,
-    player_info_ptr: *const PlayerInfo,
+    player_info_ptr: *const SpaceshipInfo,
 }
 
 impl Unk_HullData {
