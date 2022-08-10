@@ -1,0 +1,5 @@
+cls
+log "Calculating player info ptr"
+
+log "player_ptr {[0x85b610] ^ 0xb1cd15d3}"
+log "hull_ptr {([0x85b610] ^ 0xb1cd16d3) + F8 - 100}"

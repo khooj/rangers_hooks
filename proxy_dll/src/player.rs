@@ -1,3 +1,5 @@
+use std::mem::size_of;
+
 use widestring::U16CStr;
 
 static mut PLAYER_INFO_PTR: u32 = 0x85b610;
@@ -20,14 +22,15 @@ pub fn get_player_struct() -> Option<models::PlayerInfo> {
 #[derive(Debug)]
 #[repr(C)]
 pub struct PlayerInfo {
-    unk_ptr: u32,
+    unk_ptr: u32, // 0
     unk_type: u32,
     player_name_ptr: *const u16,
     empty_space0: [u32; 6],
     maybe_current_system_ptr: *const PlanetSystem,
     maybe_previous_system_ptr: *const PlanetSystem,
-    empty_space2: [u32; 3],
-    some_flag: u32, // 15 u32
+    maybe_some_ship_ptr: u32,
+    empty_space2: [u32; 2],
+    some_flag: u32, // 14 u32
     empty_space4: [u32; 45],
     money: u32,
     unk1: u32,
@@ -48,12 +51,30 @@ impl PlayerInfo {
         }
     }
 
+    fn planets(&self) -> Vec<String> {
+        let mut names = vec![];
+        unsafe {
+            let objects = &*(*self.maybe_current_system_ptr).maybe_planets;
+            println!("count: {}", objects.objects.count);
+            for i in objects.objects.iter() {
+                let s = U16CStr::from_ptr_str((*(*(*i).planet_ptr).planet_info).name);
+                names.push(s.to_string_lossy());
+            }
+        }
+        names
+    }
+
     fn clone_as_model(&self) -> models::PlayerInfo {
         unsafe {
             let previous_system = if (self.maybe_previous_system_ptr as u32) == 0 {
                 None
             } else {
                 Some((*self.maybe_previous_system_ptr).clone_as_model())
+            };
+            let current_system = if (self.maybe_current_system_ptr as u32) == 0 {
+                None
+            } else {
+                Some((*self.maybe_current_system_ptr).clone_as_model())
             };
             let hull = if (self.hull_ptr as u32) == 0 {
                 None
@@ -63,10 +84,11 @@ impl PlayerInfo {
             models::PlayerInfo {
                 experience: self.experience,
                 player_name: self.name(),
-                current_system: (*self.maybe_current_system_ptr).clone_as_model(),
+                current_system,
                 previous_system,
                 hull,
                 money: self.money,
+                current_system_planets: self.planets(),
             }
         }
     }
@@ -76,6 +98,82 @@ impl PlayerInfo {
 pub struct PlanetSystem {
     empty_space0: [u32; 4],
     name: *const u16,
+    unk1: [u32; 4],
+    maybe_planets: *const Unk_SystemObject,
+    asteroids: *const Unk_SystemObject,
+    unk_objects1: u32,
+    unk_objects2: u32,
+    unk_objects3: u32,
+    unk_objects4: u32,
+}
+
+#[repr(C)]
+pub struct Unk_SystemObject {
+    maybe_const_marker: u32,
+    objects: SystemObjectsRange,
+    unk1: [u32; 3],
+}
+
+#[repr(C)]
+pub struct SystemObjectsRange {
+    objects_ptr: *const Unk_SystemObjectPtr,
+    count: u32,
+}
+
+impl SystemObjectsRange {
+    pub fn iter(&self) -> SystemObjectsRangeIter {
+        SystemObjectsRangeIter { count: self.count, current: 0,  objects_ptr: self.objects_ptr }
+    }
+}
+
+pub struct SystemObjectsRangeIter {
+    count: u32,
+    current: u32,
+    objects_ptr: *const Unk_SystemObjectPtr,
+}
+
+impl Iterator for SystemObjectsRangeIter {
+    type Item = *const Unk_SystemObjectPtr;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current >= self.count {
+            return None;
+        }
+
+        let m = self.objects_ptr as u32;
+        let m = m + self.current*size_of::<Unk_SystemObjectPtr>() as u32;
+        let m = m as *const Unk_SystemObjectPtr;
+        self.current += 1;
+        Some(m)
+    }
+}
+
+#[repr(C)]
+pub union Unk_SystemObjectPtr {
+    planet_ptr: *const PlanetInfoPtr,
+    asteroid_ptr: *const AsteroidInfoPtr,
+}
+
+#[repr(C)]
+pub struct PlanetInfoPtr {
+    planet_info: *const PlanetInfo,
+}
+
+#[repr(C)]
+pub struct PlanetInfo {
+    unk1: [u32; 5],
+    name: *const u16,
+    system_ptr: *const PlanetSystem,
+}
+
+#[repr(C)]
+pub struct AsteroidInfoPtr {
+    asteroid_ptr: *const AsteroidInfo,
+}
+
+#[repr(C)]
+pub struct AsteroidInfo {
+    unk1: [u32; 2],
+    system_ptr: *const PlanetSystem,
 }
 
 impl PlanetSystem {
