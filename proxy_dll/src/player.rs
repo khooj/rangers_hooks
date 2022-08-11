@@ -4,7 +4,7 @@ use widestring::U16CStr;
 
 static mut PLAYER_INFO_PTR: u32 = 0x85b610;
 
-pub fn get_player_struct() -> Option<models::PlayerInfo> {
+pub fn get_player_struct() -> Option<models::SpaceshipInfo> {
     unsafe {
         let p = PLAYER_INFO_PTR as *const u32;
         if *p != 0xb1cd15d3 {
@@ -21,7 +21,7 @@ pub fn get_player_struct() -> Option<models::PlayerInfo> {
 
 #[derive(Debug)]
 #[repr(C)]
-pub struct SpaceshipInfo {
+struct SpaceshipInfo {
     unk_ptr: u32, // 0
     unk_type: u32,
     player_name_ptr: *const u16,
@@ -34,19 +34,30 @@ pub struct SpaceshipInfo {
     maybe_some_ship_ptr: u32,
     empty_space2: [u32; 2],
     some_flag: u32, // 14 u32
-    // for 55
     unk5: [u32; 34],
     speed: u32,
     empty_space4: [u32; 10],
     money: u32,
     unk1: u32,
-    hull_ptr: *const Unk_HullData,
-    empty_space1: [u32; 172], // 235 u32
-    experience: u32,
+    hull_ptr: *const Unk_HullData, // 62
+    empty_space1: [u32; 172],
+    experience: u32, // 235
     unk1_m: [u32; 2],
-    unk_ptr1: *const Unknown1, // used at 0x75f214
-    empty_space3: [u32; 37],
+    unk_ptr1: *const (), // used at 0x75f214
+    unk_ptr2: *const (),
+    unk_ptr3: *const (),
+    unk6: [u32; 12],
+    maybe_last_attacked_me_ship: *const SpaceshipInfo,
+    maybe_last_friended_ship: *const SpaceshipInfo,
+    unk7: [u32; 14],
+    x_movement: f32,
+    y_movement: f32,
+    empty_space3: [u32; 5],
+    ship_info: *const ShipInfo,
     ship_type: *const u16,
+    unk8: [u32; 9],
+    unk_x: f32,
+    unk_y: f32,
 }
 
 impl SpaceshipInfo {
@@ -57,19 +68,7 @@ impl SpaceshipInfo {
         }
     }
 
-    fn planets(&self) -> Vec<String> {
-        let mut names = vec![];
-        unsafe {
-            let objects = &(*(*self.maybe_current_system_ptr).maybe_planets).objects;
-            for i in objects.iter() {
-                let s = U16CStr::from_ptr_str((*(*i).planet_ptr).name);
-                names.push(s.to_string_lossy());
-            }
-        }
-        names
-    }
-
-    fn clone_as_model(&self) -> models::PlayerInfo {
+    fn clone_as_model(&self) -> models::SpaceshipInfo {
         unsafe {
             let previous_system = if (self.maybe_previous_system_ptr as u32) == 0 {
                 None
@@ -81,24 +80,39 @@ impl SpaceshipInfo {
             } else {
                 Some((*self.hull_ptr).clone_as_model())
             };
-            models::PlayerInfo {
+            let last_attacked_me = if (self.maybe_last_attacked_me_ship as u32) != 0 {
+                Some(Box::new((*self.maybe_last_attacked_me_ship).clone_as_model()))
+            } else {
+                None
+            };
+            let last_friended = if (self.maybe_last_friended_ship as u32) != 0 {
+                Some(Box::new((*self.maybe_last_friended_ship).clone_as_model()))
+            } else {
+                None
+            };
+            models::SpaceshipInfo {
                 experience: self.experience,
                 player_name: self.name(),
                 current_system: (*self.maybe_current_system_ptr).clone_as_model(),
                 previous_system,
                 hull,
                 money: self.money,
-                current_system_planets: self.planets(),
                 x: self.x,
                 y: self.y,
                 speed: self.speed,
+                last_attacked_me,
+                last_friended,
+                x_movement: self.x_movement,
+                y_movement: self.y_movement,
+                x_unk: self.unk_x,
+                y_unk: self.unk_y,
             }
         }
     }
 }
 
 #[repr(C)]
-pub struct PlanetSystem {
+struct PlanetSystem {
     empty_space0: [u32; 4],
     name: *const u16,
     unk1: [u32; 4],
@@ -110,26 +124,79 @@ pub struct PlanetSystem {
     unk_objects4: u32,
 }
 
+impl PlanetSystem {
+    fn name(&self) -> String {
+        unsafe {
+            let s = U16CStr::from_ptr_str(self.name);
+            s.to_string_lossy()
+        }
+    }
+
+    fn planets(&self) -> Vec<models::Planet> {
+        unsafe {
+            (*self.maybe_planets)
+                .objects
+                .iter()
+                .map(|e| {
+                    let k = (*e).planet_ptr;
+                    let name = U16CStr::from_ptr_str((*k).name);
+                    models::Planet {
+                        name: name.to_string_lossy(),
+                    }
+                })
+                .collect()
+        }
+    }
+
+    fn spaceships(&self) -> Vec<models::SpaceshipInfo> {
+        unsafe {
+            (*self.spaceships)
+                .objects
+                .iter()
+                .map(|e| {
+                    let k = (*e).spaceship_ptr;
+                    (*k).clone_as_model()
+                })
+                .collect()
+        }
+    }
+
+    fn clone_as_model(&self) -> models::PlanetSystem {
+        models::PlanetSystem {
+            name: self.name(),
+            planets: self.planets(),
+            // probably app crashes here because of overflow
+            // in this vec we have player ship too and it can
+            // cause infinite cycle
+            // spaceships: self.spaceships(),
+        }
+    }
+}
+
 #[repr(C)]
-pub struct Unk_SystemObject {
+struct Unk_SystemObject {
     maybe_const_marker: u32,
     objects: SystemObjectsRange,
     unk1: [u32; 3],
 }
 
 #[repr(C)]
-pub struct SystemObjectsRange {
+struct SystemObjectsRange {
     objects_ptr: *const Unk_SystemObjectPtr,
     count: u32,
 }
 
 impl SystemObjectsRange {
     pub fn iter(&self) -> SystemObjectsRangeIter {
-        SystemObjectsRangeIter { count: self.count, current: 0,  objects_ptr: self.objects_ptr }
+        SystemObjectsRangeIter {
+            count: self.count,
+            current: 0,
+            objects_ptr: self.objects_ptr,
+        }
     }
 }
 
-pub struct SystemObjectsRangeIter {
+struct SystemObjectsRangeIter {
     count: u32,
     current: u32,
     objects_ptr: *const Unk_SystemObjectPtr,
@@ -143,7 +210,7 @@ impl Iterator for SystemObjectsRangeIter {
         }
 
         let m = self.objects_ptr as u32;
-        let m = m + self.current*size_of::<Unk_SystemObjectPtr>() as u32;
+        let m = m + self.current * size_of::<Unk_SystemObjectPtr>() as u32;
         let m = m as *const Unk_SystemObjectPtr;
         self.current += 1;
         Some(m)
@@ -151,35 +218,23 @@ impl Iterator for SystemObjectsRangeIter {
 }
 
 #[repr(C)]
-pub union Unk_SystemObjectPtr {
+union Unk_SystemObjectPtr {
     planet_ptr: *const PlanetInfo,
     asteroid_ptr: *const AsteroidInfo,
     spaceship_ptr: *const SpaceshipInfo,
 }
 
 #[repr(C)]
-pub struct PlanetInfo {
+struct PlanetInfo {
     unk1: [u32; 5],
     name: *const u16,
     system_ptr: *const PlanetSystem,
 }
 
 #[repr(C)]
-pub struct AsteroidInfo {
+struct AsteroidInfo {
     unk1: [u32; 2],
     system_ptr: *const PlanetSystem,
-}
-
-impl PlanetSystem {
-    fn name(&self) -> String {
-        unsafe {
-            let s = U16CStr::from_ptr_str(self.name);
-            s.to_string_lossy()
-        }
-    }
-    fn clone_as_model(&self) -> models::PlanetSystem {
-        models::PlanetSystem { name: self.name() }
-    }
 }
 
 #[repr(C)]
@@ -199,8 +254,13 @@ struct Unk_HullData {
 
 impl Unk_HullData {
     fn clone_as_model(&self) -> models::HullData {
-        models::HullData {
-            hp: self.hull_hp,
-        }
+        models::HullData { hp: self.hull_hp }
     }
+}
+
+// looks like linked list with ships types and asteroids (?)
+#[repr(C)]
+struct ShipInfo {
+    unk1: u32,
+    
 }
