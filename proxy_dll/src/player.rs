@@ -69,44 +69,52 @@ impl SpaceshipInfo {
     }
 
     fn clone_as_model(&self) -> models::SpaceshipInfo {
-        unsafe {
-            let previous_system = if (self.maybe_previous_system_ptr as u32) == 0 {
-                None
-            } else {
-                Some((*self.maybe_previous_system_ptr).clone_as_model())
-            };
-            let hull = if (self.hull_ptr as u32) == 0 {
-                None
-            } else {
-                Some((*self.hull_ptr).clone_as_model())
-            };
-            let last_attacked_me = if (self.maybe_last_attacked_me_ship as u32) != 0 {
-                Some(Box::new((*self.maybe_last_attacked_me_ship).clone_as_model()))
-            } else {
-                None
-            };
-            let last_friended = if (self.maybe_last_friended_ship as u32) != 0 {
-                Some(Box::new((*self.maybe_last_friended_ship).clone_as_model()))
-            } else {
-                None
-            };
-            models::SpaceshipInfo {
-                experience: self.experience,
-                player_name: self.name(),
-                current_system: (*self.maybe_current_system_ptr).clone_as_model(),
-                previous_system,
-                hull,
-                money: self.money,
-                x: self.x,
-                y: self.y,
-                speed: self.speed,
-                last_attacked_me,
-                last_friended,
-                x_movement: self.x_movement,
-                y_movement: self.y_movement,
-                x_unk: self.unk_x,
-                y_unk: self.unk_y,
+        let mut info = self.clone_without_cycle();
+        info.previous_system = if (self.maybe_previous_system_ptr as u32) == 0 {
+            None
+        } else {
+            unsafe { Some((*self.maybe_previous_system_ptr).clone_as_model()) }
+        };
+        info.current_system = unsafe { Some((*self.maybe_current_system_ptr).clone_as_model()) };
+        info.last_attacked_me = if (self.maybe_last_attacked_me_ship as u32) != 0 {
+            unsafe {
+                Some(Box::new(
+                    (*self.maybe_last_attacked_me_ship).clone_without_cycle(),
+                ))
             }
+        } else {
+            None
+        };
+        info.last_friended = if (self.maybe_last_friended_ship as u32) != 0 {
+            unsafe {
+                Some(Box::new(
+                    (*self.maybe_last_friended_ship).clone_without_cycle(),
+                ))
+            }
+        } else {
+            None
+        };
+
+        info
+    }
+
+    fn clone_without_cycle(&self) -> models::SpaceshipInfo {
+        let hull = if (self.hull_ptr as u32) == 0 {
+            None
+        } else {
+            unsafe { Some((*self.hull_ptr).clone_as_model()) }
+        };
+        models::SpaceshipInfo {
+            player_name: self.name(),
+            hull,
+            experience: self.experience,
+            money: self.money,
+            x: self.x,
+            y: self.y,
+            speed: self.speed,
+            x_movement: self.x_movement,
+            y_movement: self.y_movement,
+            ..models::SpaceshipInfo::default()
         }
     }
 }
@@ -137,12 +145,18 @@ impl PlanetSystem {
             (*self.maybe_planets)
                 .objects
                 .iter()
-                .map(|e| {
-                    let k = (*e).planet_ptr;
-                    let name = U16CStr::from_ptr_str((*k).name);
-                    models::Planet {
-                        name: name.to_string_lossy(),
+                .filter_map(|e| {
+                    if e as u32 == 0 {
+                        return None;
                     }
+                    let k = (*e).planet_ptr;
+                    if k as u32 == 0 {
+                        return None;
+                    }
+                    let name = U16CStr::from_ptr_str((*k).name);
+                    Some(models::Planet {
+                        name: name.to_string_lossy(),
+                    })
                 })
                 .collect()
         }
@@ -153,9 +167,16 @@ impl PlanetSystem {
             (*self.spaceships)
                 .objects
                 .iter()
-                .map(|e| {
+                .filter_map(|e| {
+                    if e as u32 == 0 {
+                        return None;
+                    }
                     let k = (*e).spaceship_ptr;
-                    (*k).clone_as_model()
+                    if k as u32 == 0 {
+                        None
+                    } else {
+                        Some((*k).clone_without_cycle())
+                    }
                 })
                 .collect()
         }
@@ -165,10 +186,7 @@ impl PlanetSystem {
         models::PlanetSystem {
             name: self.name(),
             planets: self.planets(),
-            // probably app crashes here because of overflow
-            // in this vec we have player ship too and it can
-            // cause infinite cycle
-            // spaceships: self.spaceships(),
+            spaceships: self.spaceships(),
         }
     }
 }
@@ -238,12 +256,6 @@ struct AsteroidInfo {
 }
 
 #[repr(C)]
-struct Unknown1 {
-    unk1: [u32; 2],
-    some_ptr: *const (),
-}
-
-#[repr(C)]
 struct Unk_HullData {
     unk1: [u32; 24],
     hull_hp: u32,
@@ -262,5 +274,4 @@ impl Unk_HullData {
 #[repr(C)]
 struct ShipInfo {
     unk1: u32,
-    
 }
