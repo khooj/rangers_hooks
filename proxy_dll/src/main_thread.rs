@@ -61,7 +61,14 @@ impl MainThread {
                 match msg {
                     EncodedMessage::NoMessage => {}
                     m => {
-                        let m = bincode::serialize(&m).expect("can't serialize message");
+                        let m = match bincode::serialize(&m) {
+                            Ok(k) => k,
+                            Err(e) => {
+                                eprintln!("can't serialize message: {}", e);
+                                sleep(DATA_THREAD_SLEEP);
+                                continue;
+                            }
+                        };
                         // ignore SendError if no receivers exist, we are ok
                         let _ = tx.send(m);
                     }

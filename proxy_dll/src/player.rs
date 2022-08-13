@@ -69,42 +69,40 @@ impl SpaceshipInfo {
     }
 
     fn clone_as_model(&self) -> models::SpaceshipInfo {
-        let mut info = self.clone_without_cycle();
-        info.previous_system = if (self.maybe_previous_system_ptr as u32) == 0 {
+        let core = self.clone_core();
+        let previous_system = if (self.maybe_previous_system_ptr as u32) == 0 {
             None
         } else {
             unsafe { Some((*self.maybe_previous_system_ptr).clone_as_model()) }
         };
-        info.current_system = unsafe { Some((*self.maybe_current_system_ptr).clone_as_model()) };
-        info.last_attacked_me = if (self.maybe_last_attacked_me_ship as u32) != 0 {
-            unsafe {
-                Some(Box::new(
-                    (*self.maybe_last_attacked_me_ship).clone_without_cycle(),
-                ))
-            }
+        let current_system = unsafe { Some((*self.maybe_current_system_ptr).clone_as_model()) };
+        let last_attacked_me = if (self.maybe_last_attacked_me_ship as u32) != 0 {
+            unsafe { Some((*self.maybe_last_attacked_me_ship).clone_core()) }
         } else {
             None
         };
-        info.last_friended = if (self.maybe_last_friended_ship as u32) != 0 {
-            unsafe {
-                Some(Box::new(
-                    (*self.maybe_last_friended_ship).clone_without_cycle(),
-                ))
-            }
+        let last_friended = if (self.maybe_last_friended_ship as u32) != 0 {
+            unsafe { Some((*self.maybe_last_friended_ship).clone_core()) }
         } else {
             None
         };
 
-        info
+        models::SpaceshipInfo {
+            core,
+            previous_system,
+            current_system,
+            last_attacked_me,
+            last_friended,
+        }
     }
 
-    fn clone_without_cycle(&self) -> models::SpaceshipInfo {
+    fn clone_core(&self) -> models::SpaceshipInfoCore {
         let hull = if (self.hull_ptr as u32) == 0 {
             None
         } else {
             unsafe { Some((*self.hull_ptr).clone_as_model()) }
         };
-        models::SpaceshipInfo {
+        models::SpaceshipInfoCore {
             player_name: self.name(),
             hull,
             experience: self.experience,
@@ -114,7 +112,7 @@ impl SpaceshipInfo {
             speed: self.speed,
             x_movement: self.x_movement,
             y_movement: self.y_movement,
-            ..models::SpaceshipInfo::default()
+            // ..models::SpaceshipInfoCore::default()
         }
     }
 }
@@ -162,7 +160,7 @@ impl PlanetSystem {
         }
     }
 
-    fn spaceships(&self) -> Vec<models::SpaceshipInfo> {
+    fn spaceships(&self) -> Vec<models::SpaceshipInfoCore> {
         unsafe {
             (*self.spaceships)
                 .objects
@@ -175,7 +173,7 @@ impl PlanetSystem {
                     if k as u32 == 0 {
                         None
                     } else {
-                        Some((*k).clone_without_cycle())
+                        Some((*k).clone_core())
                     }
                 })
                 .collect()
