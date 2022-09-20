@@ -15,8 +15,6 @@ pub struct SpaceshipInfo {
     pub current_system: Option<PlanetSystem>,
     // can be empty at game start
     pub previous_system: Option<PlanetSystem>,
-    // boxed values should be transferred somehow
-    // if serializer does not handle it already
     pub last_attacked_me: Option<SpaceshipInfoCore>,
     pub last_friended: Option<SpaceshipInfoCore>,
 }
