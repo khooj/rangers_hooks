@@ -1,4 +1,4 @@
-use ws::{connect, Builder, Sender, Settings};
+use ws::Sender;
 
 pub struct ServeHandler {
     sender: Sender,

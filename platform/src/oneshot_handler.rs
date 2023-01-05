@@ -17,7 +17,7 @@ impl Handler for OneshotHandler {
 pub struct OneshotHandlerFactory {}
 
 impl OneshotHandlerFactory {
-    pub fn mouse_down(x: u32, y: u32) -> impl Fn(Sender) -> OneshotHandler {
+    pub fn mouse_down(x: i32, y: i32) -> impl Fn(Sender) -> OneshotHandler {
         move |s| OneshotHandler {
             sender: s,
             cmd: Command::MouseLeftClick { x, y },

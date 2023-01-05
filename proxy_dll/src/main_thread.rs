@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 use thiserror::Error;
+use windows::Win32::Foundation::HINSTANCE;
 use ws::{Builder, Settings};
 
 #[derive(Error, Debug)]
@@ -20,7 +21,7 @@ static mut DATA_THREAD: Option<JoinHandle<()>> = None;
 const DATA_THREAD_SLEEP: Duration = Duration::from_millis(100);
 
 impl MainThread {
-    pub fn start() -> Result<(), MainThreadError> {
+    pub fn start(module: HINSTANCE) -> Result<(), MainThreadError> {
         let (mut tx, rx) = spmc::channel();
 
         let hndl = Some(thread::spawn(move || {
@@ -29,7 +30,7 @@ impl MainThread {
             s.panic_on_capacity = true;
             let w = Builder::new()
                 .with_settings(s)
-                .build(|out| Handler::new(out, rx.clone()))
+                .build(|out| Handler::new(out, rx.clone(), module))
                 .expect("can't create ws");
             w.listen("127.0.0.1:3012").expect("can't start ws");
         }));

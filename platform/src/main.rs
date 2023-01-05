@@ -13,8 +13,8 @@ fn main() {
         .subcommand(Command::new("serve"))
         .subcommand(
             Command::new("mousedown")
-                .arg(arg!(<x> "x coordinate").value_parser(clap::value_parser!(u32)))
-                .arg(arg!(<y> "y coordinate").value_parser(clap::value_parser!(u32))),
+                .arg(arg!(<x> "x coordinate").value_parser(clap::value_parser!(i32)))
+                .arg(arg!(<y> "y coordinate").value_parser(clap::value_parser!(i32))),
         );
 
     let matches = cmd.get_matches();
@@ -25,8 +25,8 @@ fn main() {
         Some(("mousedown", sub_matches)) => connect(
             "ws://localhost:3012",
             OneshotHandlerFactory::mouse_down(
-                *sub_matches.get_one::<u32>("x").expect("required"),
-                *sub_matches.get_one::<u32>("y").expect("required"),
+                *sub_matches.get_one::<i32>("x").expect("required"),
+                *sub_matches.get_one::<i32>("y").expect("required"),
             ),
         )
         .expect("can't connect"),

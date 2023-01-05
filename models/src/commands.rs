@@ -1,10 +1,7 @@
-use serde::{Serialize, Deserialize};
 use derivative::Derivative;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub enum Command {
-    MouseLeftClick {
-        x: u32,
-        y: u32,
-    }
+    MouseLeftClick { x: i32, y: i32 },
 }

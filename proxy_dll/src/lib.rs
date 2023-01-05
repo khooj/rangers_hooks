@@ -1,24 +1,23 @@
-mod sigscan;
-mod player;
-mod main_thread;
+mod commands;
 mod handler;
+mod main_thread;
+mod player;
+mod sigscan;
 
 use std::error::Error;
-use std::ffi::{CString, c_void};
-use std::mem;
+use std::ffi::c_void;
 
 use main_thread::MainThread;
+use windows::Win32::Foundation::{BOOL, HINSTANCE};
 use windows::Win32::System::Console::AllocConsole;
-use windows::Win32::System::LibraryLoader::{LoadLibraryA, GetProcAddress, DisableThreadLibraryCalls};
-use windows::Win32::System::{SystemInformation::GetSystemDirectoryA, SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH}};
-use windows::core::{PCSTR, HRESULT};
-use windows::Win32::Foundation::{HINSTANCE, MAX_PATH, BOOL};
+use windows::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
+use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 
 type LPVOID = *const c_void;
 type DWORD = u32;
 
-unsafe fn main() -> Result<(), Box<dyn Error>> {
-    MainThread::start().expect("can't start main thread");
+unsafe fn main(module: HINSTANCE) -> Result<(), Box<dyn Error>> {
+    MainThread::start(module).expect("can't start main thread");
 
     Ok(())
 }
@@ -36,7 +35,7 @@ pub unsafe extern "system" fn DllMain(
     if call_reason == DLL_PROCESS_ATTACH {
         DisableThreadLibraryCalls(module);
         AllocConsole();
-        let r = main();
+        let r = main(module);
         if let Err(v) = r {
             println!("error: {}", v);
             false.into()
