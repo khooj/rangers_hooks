@@ -1,0 +1,4 @@
+[toolchain]
+channel = "nightly-2023-01-04"
+components = [ "rustfmt", "rust-std", "clippy", "miri", "rust-analysis", "llvm-tools-preview" ]
+targets = [ "i686-pc-windows-msvc" ]

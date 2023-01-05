@@ -5,7 +5,6 @@ mod path;
 mod process;
 
 use anyhow::Result;
-use std::io;
 use std::thread;
 use std::time;
 use windows::Win32::System::Threading::PROCESS_ALL_ACCESS;

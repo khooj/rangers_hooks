@@ -93,7 +93,7 @@ pub unsafe fn get_image_info() -> Result<(*const c_void, u32), SigscanError> {
 
     let mut mem_info: MEMORY_BASIC_INFORMATION = MEMORY_BASIC_INFORMATION::default();
 
-    let res = VirtualQuery(module.0 as *const c_void, &mut mem_info, size_of::<MEMORY_BASIC_INFORMATION>());
+    let res = VirtualQuery(Some(module.0 as *const c_void), &mut mem_info, size_of::<MEMORY_BASIC_INFORMATION>());
     if res == 0 {
         return Err(SigscanError::VirtualQuery);
     }
