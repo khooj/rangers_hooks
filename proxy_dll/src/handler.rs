@@ -1,5 +1,9 @@
+use models::commands::Command;
 use spmc::{Receiver, TryRecvError};
-use std::{sync::{Arc, Mutex, atomic::{AtomicU8, Ordering}}};
+use std::sync::{
+    atomic::{AtomicU8, Ordering},
+    Arc, Mutex,
+};
 use ws::{util::Token, Message, Sender};
 
 const CHECK_EVENT: Token = Token(666);
@@ -38,12 +42,24 @@ impl ws::Handler for Handler {
                 return self.sender.timeout(100, CHECK_EVENT);
             }
             let m = msg.unwrap();
-            if let Err(e) = self.sender
-                .send(Message::Binary(m)) {
-                    eprintln!("error on sending ws, shutting down conn: {}", e);
-                    return self.sender.close(ws::CloseCode::Error);
-                }
+            if let Err(e) = self.sender.send(Message::Binary(m)) {
+                eprintln!("error on sending ws, shutting down conn: {}", e);
+                return self.sender.close(ws::CloseCode::Error);
+            }
         }
         self.sender.timeout(100, CHECK_EVENT)
+    }
+
+    fn on_message(&mut self, msg: Message) -> ws::Result<()> {
+        if let ws::Message::Binary(data) = msg {
+            let data: Command = bincode::deserialize(&data).expect("can't deserialize");
+
+            match data {
+                Command::MouseLeftClick { x, y } => {
+                    println!("mouse left click command: {} {}", x, y);
+                }
+            }
+        }
+        Ok(())
     }
 }

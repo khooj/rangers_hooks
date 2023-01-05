@@ -1,3 +1,5 @@
+pub mod commands;
+
 use serde::{Serialize, Deserialize};
 use derivative::Derivative;
 

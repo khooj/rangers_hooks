@@ -32,4 +32,5 @@ features = [
     "Win32_System_Console",
     "Win32_System_SystemServices",
     "Win32_System_Memory",
+    "Win32_UI_Input_KeyboardAndMouse",
 ]
