@@ -42,7 +42,8 @@ impl MainThread {
         let hndl = thread::Builder::new()
             .name("proxy_dll-ws".into())
             .spawn(move || {
-                w.listen("127.0.0.1:3012").expect("can't start ws");
+                let w = w.bind("127.0.0.1:3012").expect("can't start ws");
+                w.run().expect("can't run ws");
                 println!("main thread close");
             })
             .unwrap();

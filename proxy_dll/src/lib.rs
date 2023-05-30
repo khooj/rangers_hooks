@@ -44,7 +44,7 @@ pub unsafe extern "system" fn DllMain(
         }
     } else if call_reason == DLL_PROCESS_DETACH {
         println!("started unloading");
-        uninit();
+        // uninit();
         println!("stopped unloading");
         // FreeConsole();
         true.into()

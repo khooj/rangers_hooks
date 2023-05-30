@@ -13,7 +13,7 @@ use windows::Win32::{
 };
 use ws::{util::Token, Message, Sender};
 
-use crate::{commands::AbsolutePoint, main_thread::STOP_FLAG};
+use crate::{commands::AbsolutePoint, main_thread::{STOP_FLAG, MainThread}};
 
 const CHECK_EVENT: Token = Token(101);
 const SHUTDOWN_EVENT: Token = Token(102);
@@ -44,6 +44,7 @@ impl ws::Handler for Handler {
 
     fn on_close(&mut self, _: ws::CloseCode, _: &str) {
         HANDLERS_COUNT.fetch_sub(1, Ordering::SeqCst);
+        // self.sender.shutdown().unwrap();
         println!("closing");
     }
 
@@ -102,7 +103,9 @@ impl ws::Handler for Handler {
 
 unsafe extern "system" fn detach_library(module: *mut c_void) -> u32 {
     STOP_FLAG.store(1, Ordering::SeqCst);
+    Sleep(500);
     let module = HINSTANCE(module as isize);
+    MainThread::stop().expect("can't stop main thread");
     Sleep(5000);
     println!("second thread");
     FreeLibraryAndExitThread(module, 0);
