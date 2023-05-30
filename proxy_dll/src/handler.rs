@@ -1,10 +1,22 @@
 use models::commands::Command;
 use spmc::{Receiver, TryRecvError};
-use std::sync::atomic::{AtomicU8, Ordering};
-use windows::Win32::Foundation::HINSTANCE;
+use std::{
+    ffi::c_void,
+    sync::atomic::{AtomicU8, Ordering},
+};
+use windows::Win32::{
+    Foundation::{CloseHandle, HINSTANCE},
+    System::{
+        LibraryLoader::FreeLibraryAndExitThread,
+        Threading::{CreateThread, ExitThread, Sleep, SleepEx, THREAD_CREATION_FLAGS},
+    },
+};
 use ws::{util::Token, Message, Sender};
 
-const CHECK_EVENT: Token = Token(666);
+use crate::{commands::AbsolutePoint, main_thread::STOP_FLAG};
+
+const CHECK_EVENT: Token = Token(101);
+const SHUTDOWN_EVENT: Token = Token(102);
 
 pub static HANDLERS_COUNT: AtomicU8 = AtomicU8::new(0);
 
@@ -36,21 +48,25 @@ impl ws::Handler for Handler {
     }
 
     fn on_timeout(&mut self, event: Token) -> ws::Result<()> {
-        if event == CHECK_EVENT {
-            let msg = self.sub.try_recv();
-            if msg.is_err() {
-                if let Err(TryRecvError::Disconnected) = msg {
-                    eprintln!("error getting message for send: {}", msg.err().unwrap());
+        match event {
+            CHECK_EVENT => {
+                let msg = self.sub.try_recv();
+                if msg.is_err() {
+                    if let Err(TryRecvError::Disconnected) = msg {
+                        eprintln!("error getting message for send: {}", msg.err().unwrap());
+                    }
+                    return self.sender.timeout(100, CHECK_EVENT);
                 }
-                return self.sender.timeout(100, CHECK_EVENT);
+                let m = msg.unwrap();
+                if let Err(e) = self.sender.send(Message::Binary(m)) {
+                    eprintln!("error on sending ws, shutting down conn: {}", e);
+                    return self.sender.close(ws::CloseCode::Error);
+                }
+                self.sender.timeout(100, CHECK_EVENT)
             }
-            let m = msg.unwrap();
-            if let Err(e) = self.sender.send(Message::Binary(m)) {
-                eprintln!("error on sending ws, shutting down conn: {}", e);
-                return self.sender.close(ws::CloseCode::Error);
-            }
+            SHUTDOWN_EVENT => self.sender.shutdown(),
+            _ => Ok(()),
         }
-        self.sender.timeout(100, CHECK_EVENT)
     }
 
     fn on_message(&mut self, msg: Message) -> ws::Result<()> {
@@ -61,11 +77,34 @@ impl ws::Handler for Handler {
                 Command::MouseLeftClick { x, y } => {
                     println!("mouse left click command: {} {}", x, y);
                     unsafe {
-                        super::commands::mouse_left_click(self.instance, x, y);
+                        super::commands::mouse_left_click(AbsolutePoint { x, y });
                     }
                 }
+                // https://stackoverflow.com/questions/54850877/unload-dll-from-process
+                Command::DetachLibrary => unsafe {
+                    let hndl = CreateThread(
+                        None,
+                        0,
+                        Some(detach_library),
+                        Some(self.instance.0 as *const c_void),
+                        THREAD_CREATION_FLAGS(0),
+                        None,
+                    )
+                    .unwrap();
+                    CloseHandle(hndl);
+                    return self.sender.close(ws::CloseCode::Normal);
+                },
             }
         }
         Ok(())
     }
+}
+
+unsafe extern "system" fn detach_library(module: *mut c_void) -> u32 {
+    STOP_FLAG.store(1, Ordering::SeqCst);
+    let module = HINSTANCE(module as isize);
+    Sleep(5000);
+    println!("second thread");
+    FreeLibraryAndExitThread(module, 0);
+    // ExitThread(0);
 }

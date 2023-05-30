@@ -15,7 +15,8 @@ fn main() {
             Command::new("mousedown")
                 .arg(arg!(<x> "x coordinate").value_parser(clap::value_parser!(i32)))
                 .arg(arg!(<y> "y coordinate").value_parser(clap::value_parser!(i32))),
-        );
+        )
+        .subcommand(Command::new("unload"));
 
     let matches = cmd.get_matches();
     match matches.subcommand() {
@@ -30,6 +31,9 @@ fn main() {
             ),
         )
         .expect("can't connect"),
+        Some(("unload", _)) => {
+            connect("ws://localhost:3012", OneshotHandlerFactory::unload()).expect("can't unload")
+        }
         _ => {}
     }
 }

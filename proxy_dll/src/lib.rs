@@ -1,4 +1,4 @@
-mod commands;
+pub(crate) mod commands;
 mod handler;
 mod main_thread;
 mod player;
@@ -9,7 +9,7 @@ use std::ffi::c_void;
 
 use main_thread::MainThread;
 use windows::Win32::Foundation::{BOOL, HINSTANCE};
-use windows::Win32::System::Console::AllocConsole;
+use windows::Win32::System::Console::{AllocConsole, FreeConsole};
 use windows::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 
@@ -43,7 +43,10 @@ pub unsafe extern "system" fn DllMain(
             true.into()
         }
     } else if call_reason == DLL_PROCESS_DETACH {
+        println!("started unloading");
         uninit();
+        println!("stopped unloading");
+        // FreeConsole();
         true.into()
     } else {
         true.into()

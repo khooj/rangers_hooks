@@ -23,4 +23,11 @@ impl OneshotHandlerFactory {
             cmd: Command::MouseLeftClick { x, y },
         }
     }
+
+    pub fn unload() -> impl Fn(Sender) -> OneshotHandler {
+        move |s| OneshotHandler {
+            sender: s,
+            cmd: Command::DetachLibrary,
+        }
+    }
 }
