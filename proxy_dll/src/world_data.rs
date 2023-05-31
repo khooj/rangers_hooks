@@ -36,8 +36,8 @@ impl Actor for WorldDataActor {
 
     async fn handle(
         &self,
-        myself: ActorRef<Self::Msg>,
-        message: Self::Msg,
+        _myself: ActorRef<Self::Msg>,
+        _message: Self::Msg,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         let new_player_info = get_player_struct();

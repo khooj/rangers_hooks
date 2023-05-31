@@ -3,10 +3,7 @@ use crate::{
 };
 
 use ractor::{Actor, ActorProcessingErr, ActorRef};
-use std::{
-    sync::atomic::{AtomicU8, Ordering},
-    thread::{self, JoinHandle},
-};
+use std::thread::{self, JoinHandle};
 use thiserror::Error;
 use windows::Win32::Foundation::HINSTANCE;
 
@@ -16,7 +13,6 @@ pub enum MainThreadError {}
 pub struct MainThread {}
 
 static mut MAIN_THREAD: Option<JoinHandle<()>> = None;
-pub static STOP_FLAG: AtomicU8 = AtomicU8::new(0);
 
 pub const MAIN_ACTOR_NAME: &str = "main_actor";
 
@@ -44,7 +40,7 @@ impl Actor for MainActor {
         let (ws_actor, _) = Actor::spawn_linked(None, WebsocketsActor, (), myself.clone().into())
             .await
             .expect("can't start websockets actor");
-        let (world_data_actor, _) = Actor::spawn_linked(
+        let (_, _) = Actor::spawn_linked(
             None,
             WorldDataActor,
             ws_actor.clone(),
@@ -102,10 +98,8 @@ impl MainThread {
         Ok(())
     }
 
-    // dont sure if i need to manually stop thread
     pub fn stop() -> Result<(), MainThreadError> {
         unsafe {
-            // STOP_FLAG.store(1, Ordering::SeqCst);
             MAIN_THREAD
                 .take()
                 .expect("join handle is none")

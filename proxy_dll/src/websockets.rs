@@ -1,6 +1,6 @@
 use models::{commands::Command, EncodedMessage, SpaceshipInfo};
 use ractor::{Actor, ActorProcessingErr, ActorRef};
-use ws::{Builder, Sender, Settings, WebSocket};
+use ws::{Builder, Sender, Settings};
 
 use crate::{
     commands::AbsolutePoint,
@@ -47,9 +47,11 @@ impl Actor for WebsocketsActor {
         _: (),
     ) -> Result<Self::State, ActorProcessingErr> {
         println!("starting ws");
-        let mut s = Settings::default();
-        s.max_connections = 1;
-        s.panic_on_capacity = true;
+        let s = Settings {
+            max_connections: 1,
+            panic_on_capacity: true,
+            ..Default::default()
+        };
         let w = Builder::new()
             .with_settings(s)
             .build(WsFac(myself))
@@ -64,7 +66,7 @@ impl Actor for WebsocketsActor {
 
     async fn post_stop(
         &self,
-        myself: ActorRef<Self::Msg>,
+        _myself: ActorRef<Self::Msg>,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         state.websocket.shutdown()?;
@@ -73,7 +75,7 @@ impl Actor for WebsocketsActor {
 
     async fn handle(
         &self,
-        myself: ActorRef<Self::Msg>,
+        _myself: ActorRef<Self::Msg>,
         msg: Self::Msg,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
@@ -109,7 +111,7 @@ impl Actor for WebsocketConnectionActor {
 
     async fn pre_start(
         &self,
-        myself: ActorRef<Self::Msg>,
+        _myself: ActorRef<Self::Msg>,
         _: (),
     ) -> Result<Self::State, ActorProcessingErr> {
         Ok(())

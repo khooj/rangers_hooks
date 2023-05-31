@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 pub(crate) mod commands;
 mod handler;
 mod main_thread;
@@ -11,12 +13,12 @@ use std::ffi::c_void;
 
 use main_thread::MainThread;
 use windows::Win32::Foundation::{BOOL, HINSTANCE};
-use windows::Win32::System::Console::{AllocConsole, FreeConsole};
+use windows::Win32::System::Console::{AllocConsole};
 use windows::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 
-type LPVOID = *const c_void;
-type DWORD = u32;
+type Lpvoid = *const c_void;
+type Dword = u32;
 
 unsafe fn main(module: HINSTANCE) -> Result<(), Box<dyn Error>> {
     MainThread::start(module).expect("can't start main thread");
@@ -24,15 +26,11 @@ unsafe fn main(module: HINSTANCE) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-unsafe fn uninit() {
-    MainThread::stop().expect("can't stop thread");
-}
-
 #[no_mangle]
 pub unsafe extern "system" fn DllMain(
     module: HINSTANCE,
-    call_reason: DWORD,
-    _reserved: LPVOID,
+    call_reason: Dword,
+    _reserved: Lpvoid,
 ) -> BOOL {
     if call_reason == DLL_PROCESS_ATTACH {
         DisableThreadLibraryCalls(module);
@@ -46,9 +44,6 @@ pub unsafe extern "system" fn DllMain(
         }
     } else if call_reason == DLL_PROCESS_DETACH {
         println!("started unloading");
-        // uninit();
-        println!("stopped unloading");
-        // FreeConsole();
         true.into()
     } else {
         true.into()
