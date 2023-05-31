@@ -78,8 +78,9 @@ impl MainThread {
         let hndl = thread::Builder::new()
             .name("proxy_dll-main".into())
             .spawn(move || {
-                let rt = tokio::runtime::Builder::new_current_thread()
+                let rt = tokio::runtime::Builder::new_multi_thread()
                     .enable_all()
+                    .worker_threads(4)
                     .build()
                     .expect("can't build tokio runtime");
 
@@ -88,6 +89,7 @@ impl MainThread {
                         Actor::spawn(Some(MAIN_ACTOR_NAME.to_string()), MainActor, module)
                             .await
                             .expect("can't create main actor");
+                    println!("registered actors: {:?}", ractor::registry::registered());
                     handle.await.expect("can't wait for main actor");
                 });
                 println!("main thread close");

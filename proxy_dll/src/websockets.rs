@@ -25,13 +25,14 @@ impl ws::Factory for WsFac {
             let actor = WebsocketsActor::conn_actor(self.0.clone())
                 .await
                 .expect("can't create new ws actor");
+            println!("new conn made");
             WsConnWrapper(actor, out)
         })
     }
 }
 
 pub struct State {
-    websocket: WebSocket<WsFac>,
+    websocket: Sender,
 }
 
 #[async_trait::async_trait]
@@ -45,14 +46,20 @@ impl Actor for WebsocketsActor {
         myself: ActorRef<Self::Msg>,
         _: (),
     ) -> Result<Self::State, ActorProcessingErr> {
+        println!("starting ws");
         let mut s = Settings::default();
         s.max_connections = 1;
         s.panic_on_capacity = true;
         let w = Builder::new()
             .with_settings(s)
-            .build(WsFac(myself.clone()))
+            .build(WsFac(myself))
             .expect("can't create ws");
-        Ok(State { websocket: w })
+        let sender = w.broadcaster();
+        let hndl = tokio::runtime::Handle::current();
+        hndl.spawn_blocking(move || {
+            w.listen("127.0.0.1:3012").expect("can't run ws");
+        });
+        Ok(State { websocket: sender })
     }
 
     async fn post_stop(
@@ -60,7 +67,7 @@ impl Actor for WebsocketsActor {
         myself: ActorRef<Self::Msg>,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
-        state.websocket.broadcaster().shutdown()?;
+        state.websocket.shutdown()?;
         Ok(())
     }
 
@@ -74,10 +81,7 @@ impl Actor for WebsocketsActor {
             Message::PlayerInfo(info) => EncodedMessage::PlayerInfo(info),
         };
         let m = bincode::serialize(&m)?;
-        state
-            .websocket
-            .broadcaster()
-            .broadcast(ws::Message::Binary(m))?;
+        state.websocket.broadcast(ws::Message::Binary(m))?;
         Ok(())
     }
 }
