@@ -59,6 +59,7 @@ impl Actor for MainActor {
     ) -> Result<(), ActorProcessingErr> {
         match msg {
             MainActorMessage::DetachLibrary => {
+                println!("cmd to detach lib");
                 myself.stop(None);
                 unsafe {
                     start_detach_library(state.module);
