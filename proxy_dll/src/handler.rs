@@ -13,7 +13,10 @@ use windows::Win32::{
 };
 use ws::{util::Token, Message, Sender};
 
-use crate::{commands::AbsolutePoint, main_thread::{STOP_FLAG, MainThread}};
+use crate::{
+    commands::AbsolutePoint,
+    main_thread::{MainThread, STOP_FLAG},
+};
 
 const CHECK_EVENT: Token = Token(101);
 const SHUTDOWN_EVENT: Token = Token(102);
@@ -110,4 +113,17 @@ unsafe extern "system" fn detach_library(module: *mut c_void) -> u32 {
     println!("second thread");
     FreeLibraryAndExitThread(module, 0);
     // ExitThread(0);
+}
+
+pub unsafe extern "system" fn start_detach_library(module: HINSTANCE) {
+    let hndl = CreateThread(
+        None,
+        0,
+        Some(detach_library),
+        Some(module.0 as *const c_void),
+        THREAD_CREATION_FLAGS(0),
+        None,
+    )
+    .unwrap();
+    CloseHandle(hndl);
 }

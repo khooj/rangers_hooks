@@ -3,6 +3,8 @@ mod handler;
 mod main_thread;
 mod player;
 mod sigscan;
+mod world_data;
+mod websockets;
 
 use std::error::Error;
 use std::ffi::c_void;
