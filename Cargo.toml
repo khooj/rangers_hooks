@@ -1,2 +1,3 @@
 [workspace]
 members = ["injector", "proxy_dll", "platform", "models"]
+resolver = "2"
