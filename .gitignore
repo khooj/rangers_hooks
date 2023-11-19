@@ -1,3 +1,7 @@
 /target
 /Cargo.lock
+/contrib/**/*json
+/contrib/**/*dot
+/contrib/**/*png
+/contrib/**/*svg
 /.vscode
