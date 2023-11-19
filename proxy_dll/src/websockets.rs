@@ -2,11 +2,7 @@ use futures_util::{stream::SplitSink, SinkExt, StreamExt};
 use models::{commands::Command, EncodedMessage, SpaceshipInfo};
 use ractor::{Actor, ActorProcessingErr, ActorRef, SupervisionEvent};
 use tokio::net::{TcpSocket, TcpStream};
-use tokio_tungstenite::{
-    accept_async,
-    tungstenite::{Message as TungMessage},
-    WebSocketStream,
-};
+use tokio_tungstenite::{accept_async, tungstenite::Message as TungMessage, WebSocketStream};
 use tokio_util::sync::CancellationToken;
 
 use crate::{

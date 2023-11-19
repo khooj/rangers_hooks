@@ -5,10 +5,10 @@ mod path;
 mod process;
 
 use anyhow::Result;
+use clap::Parser;
 use std::thread;
 use std::time;
 use windows::Win32::System::Threading::PROCESS_ALL_ACCESS;
-use clap::Parser;
 
 use needle::{InjectionMethod, Needle};
 use path::CPath;
@@ -39,7 +39,8 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let process = Process::open_from_process_name(PROCESS_ALL_ACCESS, args.procname.trim().to_string())?;
+    let process =
+        Process::open_from_process_name(PROCESS_ALL_ACCESS, args.procname.trim().to_string())?;
 
     println!(
         "\nSelected process: {}\nPID: {}\n",

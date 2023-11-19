@@ -3,11 +3,13 @@ use std::mem::size_of;
 // code and idea taken from https://github.com/eur0pa/ds2fix64
 use std::os::raw::c_void;
 
+use windows::core::PCSTR;
 use windows::Win32::System::Diagnostics::Debug::ImageNtHeader;
 use windows::Win32::System::LibraryLoader::GetModuleHandleA;
 use windows::Win32::System::Memory::{VirtualQuery, MEMORY_BASIC_INFORMATION};
-use windows::Win32::System::SystemServices::{IMAGE_DOS_HEADER, IMAGE_DOS_SIGNATURE, IMAGE_NT_SIGNATURE};
-use windows::core::PCSTR;
+use windows::Win32::System::SystemServices::{
+    IMAGE_DOS_HEADER, IMAGE_DOS_SIGNATURE, IMAGE_NT_SIGNATURE,
+};
 
 #[derive(Debug)]
 pub enum SigscanError {
@@ -46,7 +48,11 @@ pub struct Signature {
     pub ret: u32,
 }
 
-pub unsafe fn find_signature(base_addr: *const c_void, image_len: u32, sig: &Signature) -> Result<u32, SigscanError> {
+pub unsafe fn find_signature(
+    base_addr: *const c_void,
+    image_len: u32,
+    sig: &Signature,
+) -> Result<u32, SigscanError> {
     let base_addr = base_addr as u32;
     let mut scan = base_addr;
     let mut max_len = 0;
@@ -59,9 +65,10 @@ pub unsafe fn find_signature(base_addr: *const c_void, image_len: u32, sig: &Sig
         let mut sz_len = 0;
 
         for i in 0..sig.signature.len() {
-            let is_sig_byte = *((scan+i as u32) as *const u8) == sig.signature[i];
+            let is_sig_byte = *((scan + i as u32) as *const u8) == sig.signature[i];
             let is_mask_byte = i < sig.mask.len() && sig.mask[i] == b'?';
-            let is_mask_str_byte = i < sig.mask_str.len() && sig.mask_str.chars().nth(i).unwrap() == '?';
+            let is_mask_str_byte =
+                i < sig.mask_str.len() && sig.mask_str.chars().nth(i).unwrap() == '?';
             let is_mask = is_mask_byte || is_mask_str_byte;
             if !(is_sig_byte || is_mask) {
                 break;
@@ -93,7 +100,11 @@ pub unsafe fn get_image_info() -> Result<(*const c_void, u32), SigscanError> {
 
     let mut mem_info: MEMORY_BASIC_INFORMATION = MEMORY_BASIC_INFORMATION::default();
 
-    let res = VirtualQuery(Some(module.0 as *const c_void), &mut mem_info, size_of::<MEMORY_BASIC_INFORMATION>());
+    let res = VirtualQuery(
+        Some(module.0 as *const c_void),
+        &mut mem_info,
+        size_of::<MEMORY_BASIC_INFORMATION>(),
+    );
     if res == 0 {
         return Err(SigscanError::VirtualQuery);
     }
@@ -105,7 +116,7 @@ pub unsafe fn get_image_info() -> Result<(*const c_void, u32), SigscanError> {
     if is_dos_signature && is_nt_signature {
         let base = mem_info.AllocationBase as *const c_void;
         let len = (*nt_headers).OptionalHeader.SizeOfImage;
-        return Ok((base, len))
+        return Ok((base, len));
     }
 
     return Err(SigscanError::FindBase);

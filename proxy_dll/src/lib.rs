@@ -5,15 +5,15 @@ mod handler;
 mod main_thread;
 mod player;
 mod sigscan;
-mod world_data;
 mod websockets;
+mod world_data;
 
 use std::error::Error;
 use std::ffi::c_void;
 
 use main_thread::MainThread;
 use windows::Win32::Foundation::{BOOL, HINSTANCE};
-use windows::Win32::System::Console::{AllocConsole};
+use windows::Win32::System::Console::AllocConsole;
 use windows::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
 use windows::Win32::System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 

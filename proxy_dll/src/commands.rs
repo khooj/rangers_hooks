@@ -4,7 +4,8 @@ use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Gdi::ScreenToClient;
 use windows::Win32::System::SystemServices::MK_LBUTTON;
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetSystemMetrics, SendMessageW, WINDOWINFO, WM_LBUTTONDOWN, WM_LBUTTONUP, GetCursorPos, PostMessageW,
+    GetCursorPos, GetSystemMetrics, PostMessageW, SendMessageW, WINDOWINFO, WM_LBUTTONDOWN,
+    WM_LBUTTONUP,
 };
 use windows::Win32::{
     Foundation::HINSTANCE,
