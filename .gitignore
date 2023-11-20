@@ -5,3 +5,5 @@
 /contrib/**/*png
 /contrib/**/*svg
 /.vscode
+/test*.obj
+/test*.exe

@@ -25,12 +25,12 @@ _start:	                ;tell linker entry point
    mov ebx, 4
    div ebx
 
-   mov esi, s1
+   mov esi, s1  ; copy from (movsb)
    sub esp, len
    sub esp, edx
-   mov edi, esp
+   mov edi, esp ; copy to (movsb)
    mov edx, esp
-   mov ecx, len
+   mov ecx, len ; repeat times (repne)
    repne movsb
 	
 ; loop_here:

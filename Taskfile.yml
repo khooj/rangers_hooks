@@ -2,6 +2,7 @@ version: '3'
 tasks:
   asm:
     cmds:
-      - nasm -f win32 test.asm -o test.obj -Wall
-      - GoLink.exe /console /entry _start test.obj kernel32.dll
-      - ./test.exe
+      - for: ['test', 'test1']
+        cmd: nasm -f win32 {{ .ITEM }}.asm -o {{ .ITEM }}.obj -Wall
+      - cmd: GoLink.exe /console /entry _start {{ .ITEM }}.obj kernel32.dll
+        for: ['test', 'test1']
