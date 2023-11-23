@@ -77,4 +77,48 @@ struct DynamicTable {
 - если указатель найден, то по его адресу берется число методов, потом происходит сравнение переданного селектора (в дополненном коде) с элементами массива indexes
 - если найден такой индекс, то выбирается соотв. метод из массива methods, возвращается указатель на метод в ESI и ZF = 0
 
-Скорее всего массив indexes нужен для оптимизации поиска метода, т.к. похоже что элементы массива всегда начинаются с 1 и идут по порядку.
+## Type info
+
+Судя по всему это RTTI.
+
+## Auto(mation) table
+
+Используется только в каком-то OleAuto модуле.
+
+## Init table
+
+Структура init table.
+
+```pascal
+  PPTypeInfo = ^PTypeInfo;
+  PTypeInfo = ^TTypeInfo;
+  TTypeInfo = packed record
+    Kind: Byte;
+    Name: ShortString;
+   {TypeData: TTypeData}
+  end;
+
+  TFieldInfo = packed record
+    TypeInfo: PPTypeInfo;
+    Offset: Cardinal;
+  end;
+
+  PFieldTable = ^TFieldTable;
+  TFieldTable = packed record
+    X: Word;
+    Size: Cardinal;
+    Count: Cardinal;
+    Fields: array [0..0] of TFieldInfo;
+  end;
+```
+
+Судя по всему в этой таблице содержиться информация для создания/уничтожения полей объектов, используется в методах `InitializeRecord` и `FinalizeRecord` и связанных с ними.
+
+## Field table
+
+В КР нет таких классов.
+
+## Method table
+
+В КР нет таких классов.
+
